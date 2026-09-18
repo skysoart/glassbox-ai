@@ -5,6 +5,7 @@ import RunsIndex from './pages/RunsIndex';
 import RunDetail from './pages/RunDetail';
 import Incidents from './pages/Incidents';
 import CostView from './pages/CostView';
+import FailureLab from './pages/FailureLab';
 
 function NavLink({ to, children }: { to: string, children: React.ReactNode }) {
   const location = useLocation();
@@ -36,6 +37,7 @@ function Layout() {
           <nav className="flex items-center gap-1">
             <NavLink to="/chat">Active Chat</NavLink>
             <NavLink to="/">Runs Index</NavLink>
+            <NavLink to="/failure-lab">Failure Lab</NavLink>
             <NavLink to="/incidents">Incidents</NavLink>
             <NavLink to="/cost">Cost</NavLink>
           </nav>
@@ -55,6 +57,7 @@ function Layout() {
           <Route path="/chat" element={<Chat />} />
           <Route path="/" element={<RunsIndex />} />
           <Route path="/runs/:id" element={<RunDetail />} />
+          <Route path="/failure-lab" element={<FailureLab />} />
           <Route path="/incidents" element={<Incidents />} />
           <Route path="/cost" element={<CostView />} />
         </Routes>

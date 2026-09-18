@@ -22,14 +22,18 @@ class GlassBoxAgent:
         # Execute RAG Pipeline
         from app.agent.tools import file_search
         rag_result = file_search(user_message)
+        has_matches = "--- From " in rag_result
         
         self.tracer.add_step(
             step_type="RAG_RETRIEVAL",
             input_data={"query": user_message},
-            output_data=rag_result
+            output_data=rag_result if has_matches else {"status": "NO_MATCH", "detail": rag_result}
         )
         
-        dynamic_system_prompt = self.system_prompt + "\n\nKnowledge Base Results:\n" + rag_result
+        if has_matches:
+            dynamic_system_prompt = self.system_prompt + "\n\nKnowledge Base Documentation:\n" + rag_result
+        else:
+            dynamic_system_prompt = self.system_prompt
         
         history.append({"role": "user", "content": user_message})
 

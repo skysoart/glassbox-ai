@@ -183,8 +183,23 @@ export default function RunDetail() {
             {run.status.toUpperCase()}
           </span>
         </div>
-        <div className="font-mono text-[12px] text-[var(--color-muted)]">
-          {run.total_latency_ms.toFixed(2)}ms • ${run.total_cost.toFixed(4)}
+        <div className="flex items-center gap-4 font-mono text-[12px] text-[var(--color-muted)]">
+          <span>{run.total_latency_ms.toFixed(2)}ms • ${run.total_cost.toFixed(4)}</span>
+          <button
+            onClick={() => {
+              const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ run, turns }, null, 2));
+              const downloadAnchor = document.createElement('a');
+              downloadAnchor.setAttribute("href", dataStr);
+              downloadAnchor.setAttribute("download", `glassbox_flight_log_${run.run_id.split('-')[0]}.json`);
+              document.body.appendChild(downloadAnchor);
+              downloadAnchor.click();
+              downloadAnchor.remove();
+            }}
+            className="px-2.5 py-1 text-[11px] font-mono uppercase tracking-wider border border-[var(--color-hairline)] hover:border-[var(--color-ink)] text-[var(--color-ink)] bg-[var(--color-surface)] transition-colors"
+            title="Download full JSON telemetry trace"
+          >
+            Export Log ↓
+          </button>
         </div>
       </div>
 

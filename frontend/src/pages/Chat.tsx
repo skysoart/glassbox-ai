@@ -1,5 +1,100 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
+
+// Specialized trace card renderer adhering to Flight Recorder aesthetic
+function renderTraceCard(trace: any) {
+  if (trace.step_type === 'RAG_RETRIEVAL') {
+    const raw = typeof trace.output_data === 'string' ? trace.output_data : JSON.stringify(trace.output_data);
+    const parts = raw.split('--- From ');
+    const query = trace.input_data?.query || '';
+    
+    return (
+      <div className="space-y-2">
+        {query && (
+          <div className="text-[10px] text-[var(--color-muted)] border-b border-[var(--color-hairline)] pb-1">
+            QUERY: <span className="text-[var(--color-ink)] font-medium font-mono">"{query}"</span>
+          </div>
+        )}
+        {parts.length > 1 ? (
+          parts.slice(1).map((part: string, pIdx: number) => {
+            const lines = part.split(' ---\n');
+            const docName = lines[0];
+            const content = lines.slice(1).join(' ---\n').trim();
+            return (
+              <div key={pIdx} className="bg-[var(--color-surface)] border border-[var(--color-hairline)] p-2 text-[10px]">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="bg-[var(--color-ink)] text-[var(--color-paper)] px-1 py-0.2 font-mono text-[9px]">
+                    DOC
+                  </span>
+                  <span className="font-mono text-[var(--color-ink)] font-medium">{docName}</span>
+                </div>
+                <div className="text-[var(--color-muted)] leading-relaxed line-clamp-4 hover:line-clamp-none">
+                  {content}
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <div className="bg-[var(--color-surface)] border border-[var(--color-hairline)] p-2.5 font-mono text-[10px] text-[var(--color-muted)]">
+            <div className="text-[var(--color-ink)] font-medium mb-0.5">[ NO CONTEXT INJECTED ]</div>
+            <div>Query is conversational or contains no matching documentation keywords. LLM context kept clean.</div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (trace.step_type === 'CONTEXT_SELECTION') {
+    const meta = trace.metadata_json || trace.metadata || {};
+    return (
+      <div className="space-y-1 text-[10px]">
+        <div className="flex justify-between border-b border-[var(--color-hairline)] pb-0.5">
+          <span className="text-[var(--color-muted)]">BUDGET</span>
+          <span className="text-[var(--color-ink)] font-mono">{meta.budget || '500,000'} tokens</span>
+        </div>
+        <div className="flex justify-between border-b border-[var(--color-hairline)] pb-0.5">
+          <span className="text-[var(--color-muted)]">RETAINED TURNS</span>
+          <span className="text-[var(--color-ink)] font-mono">{meta.retained_turns ?? meta.turn_count ?? 'All'}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-[var(--color-muted)]">REDUCTION</span>
+          <span className="text-[#2c7a4b] font-mono font-medium">{meta.reduction_percentage ? `${meta.reduction_percentage.toFixed(1)}%` : '0%'}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (trace.step_type === 'LLM_CALL') {
+    return (
+      <div className="space-y-1.5 text-[10px]">
+        <div className="flex justify-between border-b border-[var(--color-hairline)] pb-0.5">
+          <span className="text-[var(--color-muted)]">MODEL</span>
+          <span className="text-[var(--color-ink)] font-mono">{trace.model || 'gemini-3.5-flash-lite'}</span>
+        </div>
+        <div className="flex justify-between border-b border-[var(--color-hairline)] pb-0.5">
+          <span className="text-[var(--color-muted)]">TOKENS (IN/OUT)</span>
+          <span className="text-[var(--color-ink)] font-mono">
+            {trace.token_usage?.prompt_tokens || 0} / {trace.token_usage?.completion_tokens || 0}
+          </span>
+        </div>
+        <div className="flex justify-between border-b border-[var(--color-hairline)] pb-0.5">
+          <span className="text-[var(--color-muted)]">LATENCY</span>
+          <span className="text-[var(--color-ink)] font-mono">{trace.duration_ms ? `${trace.duration_ms.toFixed(0)}ms` : '—'}</span>
+        </div>
+        <div className="text-[var(--color-muted)] mt-1 pt-1 line-clamp-3 text-[9px] font-mono">
+          {trace.output_data?.content || ''}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="text-[var(--color-ink)] whitespace-pre-wrap break-words">
+      {trace.output_data ? (typeof trace.output_data === 'string' ? trace.output_data : JSON.stringify(trace.output_data, null, 2)) : (trace.error ? JSON.stringify(trace.error) : '...')}
+    </div>
+  );
+}
 
 // The Chat workspace in "flight recorder" aesthetic
 export default function Chat() {
@@ -136,6 +231,18 @@ export default function Chat() {
               <div className={`px-4 py-3 max-w-[80%] ${m.role === 'user' ? 'bg-[var(--color-ink)] text-[var(--color-paper)]' : 'bg-[var(--color-surface)] border border-[var(--color-hairline)] text-[var(--color-ink)]'} text-[13px] leading-relaxed whitespace-pre-wrap`}>
                 {m.content}
               </div>
+              {m.role === 'assistant' && m.run_id && (
+                <div className="mt-1.5 flex items-center gap-2 font-mono text-[10px] text-[var(--color-muted)]">
+                  <span>RUN: {m.run_id.split('-')[0]}</span>
+                  <span>•</span>
+                  <Link 
+                    to={`/runs/${m.run_id}`} 
+                    className="underline hover:text-[var(--color-oxblood)] text-[var(--color-ink)] flex items-center gap-1"
+                  >
+                    INSPECT TRACE →
+                  </Link>
+                </div>
+              )}
             </div>
           ))}
           
@@ -188,11 +295,18 @@ export default function Chat() {
                 <h4 className="small-caps text-[var(--color-muted)] mb-3 border-b border-[var(--color-hairline)] pb-1">Thought Process</h4>
                 {currentRun.traces && currentRun.traces.length > 0 ? (
                   currentRun.traces.map((trace: any, idx: number) => (
-                    <div key={idx} className="bg-[var(--color-paper)] border border-[var(--color-hairline)] p-3 mb-2">
-                      <div className="text-[10px] text-[var(--color-muted)] mb-1">[{trace.step_type}]</div>
-                      <div className="text-[var(--color-ink)] whitespace-pre-wrap break-words">
-                        {trace.output_data ? (typeof trace.output_data === 'string' ? trace.output_data : JSON.stringify(trace.output_data, null, 2)) : (trace.error ? JSON.stringify(trace.error) : '...')}
+                    <div key={idx} className="bg-[var(--color-paper)] border border-[var(--color-hairline)] p-3 mb-2.5">
+                      <div className="flex items-center justify-between border-b border-[var(--color-hairline)] pb-1 mb-2">
+                        <span className="text-[10px] font-mono text-[var(--color-oxblood)] font-medium tracking-wide">
+                          [{trace.step_type}]
+                        </span>
+                        {trace.duration_ms > 0 && (
+                          <span className="text-[9px] font-mono text-[var(--color-muted)]">
+                            {trace.duration_ms.toFixed(0)}ms
+                          </span>
+                        )}
                       </div>
+                      {renderTraceCard(trace)}
                     </div>
                   ))
                 ) : (

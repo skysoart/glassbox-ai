@@ -94,7 +94,7 @@ export default function CostView() {
               </thead>
               <tbody className="font-mono">
                 <tr className="border-b border-[var(--color-hairline)] hover:bg-[var(--color-surface)]">
-                  <td className="py-2">gemini-3.6-flash</td>
+                  <td className="py-2">gemini-3.5-flash-lite</td>
                   <td className="py-2 text-right">{totalTokensIn.toLocaleString()}</td>
                   <td className="py-2 text-right">{totalTokensOut.toLocaleString()}</td>
                   <td className="py-2 text-right">${totalSpend.toFixed(4)}</td>

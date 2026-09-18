@@ -50,48 +50,85 @@ def web_search(query: str) -> str:
 
 import os
 import pathlib
+import re
+from collections import Counter
+
+RAG_STOPWORDS = {
+    'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 
+    'any', 'are', 'aren', 'as', 'at', 'be', 'because', 'been', 'before', 'being', 
+    'below', 'between', 'both', 'but', 'by', 'can', 'cant', 'cannot', 'could', 
+    'did', 'do', 'does', 'doing', 'dont', 'down', 'during', 'each', 'few', 'for', 
+    'from', 'further', 'had', 'has', 'have', 'having', 'he', 'her', 'here', 'hers', 
+    'herself', 'him', 'himself', 'his', 'how', 'if', 'in', 'into', 'is', 'it', 'its', 
+    'itself', 'let', 'me', 'more', 'most', 'my', 'myself', 'no', 'nor', 'not', 'of', 
+    'off', 'on', 'once', 'only', 'or', 'other', 'ought', 'our', 'ours', 'ourselves', 
+    'out', 'over', 'own', 'same', 'she', 'should', 'so', 'some', 'such', 'than', 
+    'that', 'the', 'their', 'theirs', 'them', 'themselves', 'then', 'there', 'these', 
+    'they', 'this', 'those', 'through', 'to', 'too', 'under', 'until', 'up', 'very', 
+    'was', 'we', 'were', 'what', 'when', 'where', 'which', 'while', 'who', 'whom', 
+    'why', 'with', 'would', 'you', 'your', 'yours', 'yourself', 'yourselves', 'tell', 
+    'show', 'give', 'please', 'hello', 'hi', 'ok', 'hey', 'joke', 'say', 'good', 'can'
+}
 
 def file_search(query: str) -> str:
-    """Real RAG implementation scanning the docs directory"""
+    """Accurate RAG implementation with stopword elimination and token frequency scoring"""
     try:
-        docs_dir = pathlib.Path("d:/epoch/docs")
+        base_dir = pathlib.Path(__file__).resolve().parent.parent.parent.parent
+        docs_dir = base_dir / "docs"
+        if not docs_dir.exists():
+            docs_dir = pathlib.Path("d:/glassbox/docs")
+        if not docs_dir.exists():
+            docs_dir = pathlib.Path("docs")
         if not docs_dir.exists():
             return "Docs directory not found."
-            
+
+        # Extract substantive terms of 3+ letters
+        raw_words = re.findall(r'\b[a-zA-Z0-9_-]{3,}\b', query.lower())
+        query_terms = [w for w in raw_words if w not in RAG_STOPWORDS]
+
+        if not query_terms:
+            return f"NO_RELEVANT_DOCS: Conversational or general query with no knowledge-base matches."
+
         results = []
-        query_terms = query.lower().split()
-        
         for file_path in docs_dir.glob("**/*.md"):
             try:
                 content = file_path.read_text(encoding="utf-8")
-                # Simple chunking by double newlines (paragraphs)
                 chunks = content.split("\n\n")
-                
-                for i, chunk in enumerate(chunks):
-                    chunk_lower = chunk.lower()
-                    # Count how many query terms are in this chunk
-                    score = sum(1 for term in query_terms if term in chunk_lower)
-                    
+                file_stem = file_path.stem.lower()
+
+                for chunk in chunks:
+                    chunk_text = chunk.strip()
+                    if not chunk_text:
+                        continue
+                    chunk_words = re.findall(r'\b[a-zA-Z0-9_-]{3,}\b', chunk_text.lower())
+                    counts = Counter(chunk_words)
+
+                    score = 0
+                    for term in query_terms:
+                        if term in counts:
+                            score += counts[term] * 2
+                        if term in file_stem:
+                            score += 5
+
                     if score > 0:
                         results.append({
                             "file": file_path.name,
-                            "chunk": chunk.strip(),
+                            "chunk": chunk_text,
                             "score": score
                         })
             except Exception:
                 pass
-                
+
         if not results:
-            return f"No results found for '{query}' in knowledge base."
-            
-        # Sort by score descending and take top 3 chunks
+            return f"NO_RELEVANT_DOCS: No documents matched query terms '{', '.join(query_terms)}'."
+
         results.sort(key=lambda x: x["score"], reverse=True)
         top_results = results[:3]
-        
+
         output = f"RAG Search Results for '{query}':\n\n"
         for r in top_results:
             output += f"--- From {r['file']} ---\n{r['chunk']}\n\n"
-            
+
         return output.strip()
     except Exception as e:
         return f"File search failed: {str(e)}"
