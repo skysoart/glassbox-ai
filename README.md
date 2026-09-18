@@ -5,7 +5,7 @@
 GlassBox AI is an observable AI agent platform built to solve the "Glass Box Problem." 
 It ensures that the complete execution of an AI agent can be inspected, explained, measured, debugged, and replayed.
 
-Unlike generic chatbot wrappers, GlassBox AI exposes its entire internal pipeline through a custom real-time telemetry frontend. It features a strict "aircraft black-box" aesthetic that presents highly dense data—showing you precisely what context was injected, what tools were called, and how much each step cost.
+Unlike generic chatbot wrappers, GlassBox AI exposes its entire internal pipeline through a custom real-time telemetry frontend. It features a strict "aircraft black-box" aesthetic that presents highly dense dataâ€”showing you precisely what context was injected, what tools were called, and how much each step cost.
 
 ## Core Features
 - **Strict Context Management:** Actively prunes history using a strictly bounded context manager, calculating tokens locally before hitting the API.
@@ -69,3 +69,10 @@ See the `docs/` folder for detailed guides on:
 - **CONTEXT_ENGINEERING.md**: The philosophy behind the strictly bounded context.
 - **FAILURES.md**: Error boundaries and recovery patterns.
 
+---
+
+## Collaborators
+
+- [Garvit Dalakoti](https://github.com/skysoart)
+- [Dhruv Tilara](https://github.com/Dhruvtilara)
+- [Khushal Jangid](https://github.com/khushal123supreme)
