@@ -69,8 +69,6 @@ See the `docs/` folder for detailed guides on:
 - **CONTEXT_ENGINEERING.md**: The philosophy behind the strictly bounded context.
 - **FAILURES.md**: Error boundaries and recovery patterns.
 
----
-
 ## Collaborators
 
 - [Garvit Dalakoti](https://github.com/skysoart)
