@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import axios from 'axios';
+import { api, apiUrl, describeError, formatCost } from '../lib/api';
 
 // --- Types ---
 type SpanStatus = "ok" | "warn" | "error";
@@ -98,6 +98,7 @@ export default function RunDetail() {
   const [run, setRun] = useState<any>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [selectedTurnIdx, setSelectedTurnIdx] = useState(0);
   const [selectedSpanId, setSelectedSpanId] = useState<string | null>(null);
@@ -106,8 +107,8 @@ export default function RunDetail() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const runRes = await axios.get(`http://localhost:8000/api/runs/${id}`);
-        const tracesRes = await axios.get(`http://localhost:8000/api/runs/${id}/traces`);
+        const runRes = await api.get(`/api/runs/${id}`);
+        const tracesRes = await api.get(`/api/runs/${id}/traces`);
         
         setRun(runRes.data);
         
@@ -128,20 +129,42 @@ export default function RunDetail() {
           error: t.error ? JSON.stringify(t.error) : undefined
         }));
 
-        let contextSegments: ContextSegment[] = [
-          { kind: "recent", tokens: runRes.data.total_tokens || 0 }
+        // Real context figures come from the CONTEXT_SELECTION step rather
+        // than being invented from the run's token total.
+        const contextStep = [...tracesRes.data].reverse()
+          .find((t: any) => t.step_type === 'CONTEXT_SELECTION' && t.metadata_json);
+        const meta = contextStep?.metadata_json ?? {};
+        const limit = meta.budget_tokens || runRes.data.context_original_tokens || 8192;
+        const finalTokens = meta.final_tokens ?? runRes.data.context_final_tokens ?? 0;
+        const discardedTokens = Math.max(
+          (meta.original_tokens ?? runRes.data.context_original_tokens ?? 0) - finalTokens, 0);
+
+        const contextSegments: ContextSegment[] = [
+          { kind: 'recent', tokens: finalTokens, note: `${meta.retained_turns_count ?? 0} turns retained` },
         ];
+        if (discardedTokens > 0) {
+          contextSegments.push({
+            kind: 'summary',
+            tokens: discardedTokens,
+            note: 'Trimmed',
+          });
+        }
+
+        // Use the actual conversation text, not a placeholder sentence.
+        const userStep = tracesRes.data.find((t: any) => t.step_type === 'USER_INPUT');
+        const finalStep = [...tracesRes.data].reverse()
+          .find((t: any) => t.step_type === 'FINAL_RESPONSE');
 
         setTurns([{
           index: 1,
-          userMessage: runRes.data.conversation_id,
-          assistantMessage: "Telemetry trace recorded for this session.",
+          userMessage: userStep?.input_data?.message || runRes.data.conversation_id,
+          assistantMessage: finalStep?.output_data?.content || '(no final response recorded)',
           spans: spans,
-          context: { limit: 8192, segments: contextSegments }
+          context: { limit, segments: contextSegments }
         }]);
 
       } catch (err) {
-        console.error(err);
+        setError(describeError(err));
       } finally {
         setLoading(false);
       }
@@ -162,6 +185,7 @@ export default function RunDetail() {
   }, [turns.length]);
 
   if (loading) return <div className="p-6 font-mono text-[13px] text-[var(--color-muted)]">[ LOADING TRACE... ]</div>;
+  if (error) return <div className="p-6 font-mono text-[13px] text-[var(--color-oxblood)]">[ ERROR ] {error}</div>;
   if (!run || turns.length === 0) return <div className="p-6 font-mono text-[13px] text-[var(--color-oxblood)]">Trace not found.</div>;
 
   const selectedTurn = turns[selectedTurnIdx];
@@ -184,22 +208,19 @@ export default function RunDetail() {
           </span>
         </div>
         <div className="flex items-center gap-4 font-mono text-[12px] text-[var(--color-muted)]">
-          <span>{run.total_latency_ms.toFixed(2)}ms • ${run.total_cost.toFixed(4)}</span>
-          <button
-            onClick={() => {
-              const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ run, turns }, null, 2));
-              const downloadAnchor = document.createElement('a');
-              downloadAnchor.setAttribute("href", dataStr);
-              downloadAnchor.setAttribute("download", `glassbox_flight_log_${run.run_id.split('-')[0]}.json`);
-              document.body.appendChild(downloadAnchor);
-              downloadAnchor.click();
-              downloadAnchor.remove();
-            }}
+          <span title={run.cost_known === false ? 'Cost unknown: this model has no configured price.' : undefined}>
+            {(run.total_latency_ms || 0).toFixed(2)}ms • {formatCost(run.total_cost || 0, run.cost_known !== false)}
+          </span>
+          {/* Downloads the canonical trace straight from the API, rather than
+              re-serialising the shape this page happens to render. */}
+          <a
+            href={apiUrl(`/api/runs/${run.run_id}/export`)}
+            download={`glassbox-run-${run.run_id}.json`}
             className="px-2.5 py-1 text-[11px] font-mono uppercase tracking-wider border border-[var(--color-hairline)] hover:border-[var(--color-ink)] text-[var(--color-ink)] bg-[var(--color-surface)] transition-colors"
-            title="Download full JSON telemetry trace"
+            title="Download the full JSON telemetry trace"
           >
             Export Log ↓
-          </button>
+          </a>
         </div>
       </div>
 
@@ -244,8 +265,11 @@ export default function RunDetail() {
               <div className="flex flex-col gap-1">
                 <ContextMeter context={selectedTurn.context} />
                 <div className="flex justify-between font-mono text-[10px] text-[var(--color-muted)]">
-                  <span>0 tokens</span>
-                  <span>{selectedTurn.context.limit} max</span>
+                  {/* This read "0 tokens" regardless of what the run used. */}
+                  <span>
+                    {selectedTurn.context.segments.reduce((acc, s) => acc + s.tokens, 0).toLocaleString()} tokens
+                  </span>
+                  <span>{selectedTurn.context.limit.toLocaleString()} max</span>
                 </div>
               </div>
             )}

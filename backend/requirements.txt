@@ -1,0 +1,24 @@
+# GlassBox AI - backend dependencies
+# Pinned to the versions this project is developed and tested against.
+
+# Web / API
+fastapi==0.141.1
+uvicorn==0.53.0
+pydantic==2.13.5
+
+# Persistence
+SQLAlchemy==2.0.54
+
+# Configuration
+python-dotenv==1.2.3
+
+# LLM providers
+openai==3.15.0            # also used for Gemini via its OpenAI-compatible endpoint
+google-generativeai==0.8.6 # optional: only needed when LLM_PROVIDER=gemini
+
+# Token accounting
+tiktoken==0.14.0
+
+# Tests
+pytest==9.1.1
+httpx==0.28.1            # required by fastapi.testclient

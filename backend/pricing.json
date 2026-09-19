@@ -1,0 +1,20 @@
+{
+  "_comment": [
+    "USD per 1,000,000 tokens. Provider list prices change over time - verify",
+    "against the provider's pricing page before trusting the cost dashboard.",
+    "Lookup is exact-match first, then longest-prefix match, so a dated model",
+    "id such as 'gemini-2.5-flash-001' resolves to 'gemini-2.5-flash'.",
+    "For a model that is not listed here, set LLM_PRICE_INPUT / LLM_PRICE_OUTPUT",
+    "in .env; otherwise cost is reported as unknown rather than as $0."
+  ],
+  "models": {
+    "gpt-4o-mini":           { "input": 0.15,  "output": 0.60 },
+    "gpt-4o":                { "input": 2.50,  "output": 10.00 },
+    "gemini-1.5-flash":      { "input": 0.075, "output": 0.30 },
+    "gemini-1.5-pro":        { "input": 1.25,  "output": 5.00 },
+    "gemini-2.0-flash":      { "input": 0.10,  "output": 0.40 },
+    "gemini-2.5-flash-lite": { "input": 0.10,  "output": 0.40 },
+    "gemini-2.5-flash":      { "input": 0.30,  "output": 2.50 },
+    "gemini-2.5-pro":        { "input": 1.25,  "output": 10.00 }
+  }
+}

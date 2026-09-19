@@ -1,12 +1,16 @@
-from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey, Text, JSON
-from sqlalchemy.orm import relationship
 import datetime
+
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, JSON, String
+from sqlalchemy.orm import relationship
+
 from app.database.database import Base
 
 IST = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
 
+
 def now_ist():
     return datetime.datetime.now(IST)
+
 
 class Run(Base):
     __tablename__ = "runs"
@@ -21,6 +25,9 @@ class Run(Base):
     total_output_tokens = Column(Integer, default=0)
     total_tokens = Column(Integer, default=0)
     total_cost = Column(Float, default=0.0)
+    # False when at least one call used a model with no known price, so the UI
+    # can show "unknown" instead of presenting an understated total as fact.
+    cost_known = Column(Boolean, default=True)
     llm_call_count = Column(Integer, default=0)
     tool_call_count = Column(Integer, default=0)
     validation_count = Column(Integer, default=0)
@@ -32,6 +39,7 @@ class Run(Base):
 
     traces = relationship("TraceStep", back_populates="run", cascade="all, delete-orphan")
 
+
 class TraceStep(Base):
     __tablename__ = "trace_steps"
 
@@ -42,7 +50,7 @@ class TraceStep(Base):
     timestamp_start = Column(DateTime(timezone=True), default=now_ist)
     timestamp_end = Column(DateTime(timezone=True), nullable=True)
     duration_ms = Column(Float, default=0.0)
-    step_type = Column("type", String, index=True) # USER_INPUT, CONTEXT_SELECTION, etc.
+    step_type = Column("type", String, index=True)  # USER_INPUT, CONTEXT_SELECTION, ...
     status = Column(String)
     input_data = Column("input", JSON, nullable=True)
     output_data = Column("output", JSON, nullable=True)
@@ -51,6 +59,7 @@ class TraceStep(Base):
     model = Column(String, nullable=True)
     token_usage = Column(JSON, nullable=True)
     cost = Column(Float, default=0.0)
+    cost_known = Column(Boolean, default=True)
 
     run = relationship("Run", back_populates="traces")
     sub_steps = relationship("TraceStep", backref="parent", remote_side=[step_id])

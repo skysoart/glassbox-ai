@@ -1,6 +1,6 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import { api, describeError } from '../lib/api';
 
 interface TestResult {
   runId?: string;
@@ -21,7 +21,7 @@ export default function FailureLab() {
     setWrongToolResult(null);
     const start = performance.now();
     try {
-      const res = await axios.post('http://localhost:8000/api/tests/failure-wrong-tool');
+      const res = await api.post('/api/tests/failure-wrong-tool');
       const duration = performance.now() - start;
       setWrongToolResult({
         runId: res.data.run_id,
@@ -29,10 +29,8 @@ export default function FailureLab() {
         error: res.data.error,
         durationMs: duration
       });
-    } catch (err: any) {
-      setWrongToolResult({
-        error: err.response?.data?.detail || err.message || 'Request failed'
-      });
+    } catch (err) {
+      setWrongToolResult({ error: describeError(err) });
     } finally {
       setRunningWrongTool(false);
     }
@@ -43,7 +41,7 @@ export default function FailureLab() {
     setStressTestResult(null);
     const start = performance.now();
     try {
-      const res = await axios.post('http://localhost:8000/api/tests/stress-test');
+      const res = await api.post('/api/tests/stress-test');
       const duration = performance.now() - start;
       setStressTestResult({
         runId: res.data.run_id,
@@ -51,10 +49,8 @@ export default function FailureLab() {
         error: res.data.error,
         durationMs: duration
       });
-    } catch (err: any) {
-      setStressTestResult({
-        error: err.response?.data?.detail || err.message || 'Request failed'
-      });
+    } catch (err) {
+      setStressTestResult({ error: describeError(err) });
     } finally {
       setRunningStressTest(false);
     }

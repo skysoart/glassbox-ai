@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import { api, describeError } from '../lib/api';
 
 // Specialized trace card renderer adhering to Flight Recorder aesthetic
 function renderTraceCard(trace: any) {
@@ -49,13 +49,26 @@ function renderTraceCard(trace: any) {
     const meta = trace.metadata_json || trace.metadata || {};
     return (
       <div className="space-y-1 text-[10px]">
+        {/* These read meta.budget and meta.retained_turns, which the backend
+            never sends, so both always fell through to their placeholders. */}
         <div className="flex justify-between border-b border-[var(--color-hairline)] pb-0.5">
           <span className="text-[var(--color-muted)]">BUDGET</span>
-          <span className="text-[var(--color-ink)] font-mono">{meta.budget || '500,000'} tokens</span>
+          <span className="text-[var(--color-ink)] font-mono">
+            {(meta.budget_tokens ?? 0).toLocaleString()} tokens
+          </span>
+        </div>
+        <div className="flex justify-between border-b border-[var(--color-hairline)] pb-0.5">
+          <span className="text-[var(--color-muted)]">CONTEXT</span>
+          <span className="text-[var(--color-ink)] font-mono">
+            {(meta.final_tokens ?? 0).toLocaleString()} / {(meta.original_tokens ?? 0).toLocaleString()}
+          </span>
         </div>
         <div className="flex justify-between border-b border-[var(--color-hairline)] pb-0.5">
           <span className="text-[var(--color-muted)]">RETAINED TURNS</span>
-          <span className="text-[var(--color-ink)] font-mono">{meta.retained_turns ?? meta.turn_count ?? 'All'}</span>
+          <span className="text-[var(--color-ink)] font-mono">
+            {meta.retained_turns_count ?? 'All'}
+            {meta.discarded_turns_count ? ` (${meta.discarded_turns_count} dropped)` : ''}
+          </span>
         </div>
         <div className="flex justify-between">
           <span className="text-[var(--color-muted)]">REDUCTION</span>
@@ -105,37 +118,39 @@ export default function Chat() {
   const [loading, setLoading] = useState(false);
   const [conversationId, setConversationId] = useState(() => 'chat_ui_' + Date.now());
 
-  useEffect(() => {
-    fetchConversations();
-  }, []);
-
-  const fetchConversations = async () => {
+  const fetchConversations = useCallback(async () => {
     try {
-      const res = await axios.get('http://localhost:8000/api/conversations');
+      const res = await api.get('/api/conversations');
       setConversations(res.data);
     } catch (err) {
-      console.error(err);
+      console.error(describeError(err));
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    // The state update happens after an await, not synchronously in the effect.
+    // oxlint-disable-next-line react/set-state-in-effect
+    fetchConversations();
+  }, [fetchConversations]);
 
   const loadConversation = async (id: string) => {
     setConversationId(id);
     setCurrentRun(null);
     try {
-      const res = await axios.get(`http://localhost:8000/api/conversations/${id}/history`);
+      const res = await api.get(`/api/conversations/${id}/history`);
       setMessages(res.data.history);
       
       // Optionally load the last run for telemetry
       if (res.data.history.length > 0) {
         const lastMsg = res.data.history[res.data.history.length - 1];
         if (lastMsg.run_id) {
-          const runRes = await axios.get(`http://localhost:8000/api/runs/${lastMsg.run_id}`);
-          const tracesRes = await axios.get(`http://localhost:8000/api/runs/${lastMsg.run_id}/traces`);
+          const runRes = await api.get(`/api/runs/${lastMsg.run_id}`);
+          const tracesRes = await api.get(`/api/runs/${lastMsg.run_id}/traces`);
           setCurrentRun({ ...runRes.data, traces: tracesRes.data });
         }
       }
     } catch (err) {
-      console.error(err);
+      console.error(describeError(err));
     }
   };
 
@@ -153,27 +168,26 @@ export default function Chat() {
     setLoading(true);
 
     try {
-      const res = await axios.post('http://localhost:8000/api/chat', {
+      const res = await api.post('/api/chat', {
         conversation_id: conversationId,
         message: input,
         history: messages
       });
       setMessages(prev => [...prev, { role: 'assistant', content: res.data.response, run_id: res.data.run_id }]);
       
-      const runRes = await axios.get(`http://localhost:8000/api/runs/${res.data.run_id}`);
-      const tracesRes = await axios.get(`http://localhost:8000/api/runs/${res.data.run_id}/traces`);
+      const runRes = await api.get(`/api/runs/${res.data.run_id}`);
+      const tracesRes = await api.get(`/api/runs/${res.data.run_id}/traces`);
       
       setCurrentRun({
         ...runRes.data,
         traces: tracesRes.data
       });
       fetchConversations();
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      const errorMsg = err.response?.data?.detail || err.message || 'Unknown error occurred.';
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: `SYSTEM ERROR: ${errorMsg}` 
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `SYSTEM ERROR: ${describeError(err)}`
       }]);
     }
     setLoading(false);
